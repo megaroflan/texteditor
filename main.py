@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox, filedialog
+from re import finditer
 
 
 def do_nothing(*args):
@@ -31,9 +32,7 @@ class Application:
         self.text_field.config(yscrollcommand=scroll.set)
 
         self.root.bind('<Control-KeyPress>', self.keypress)
-        self.root.bind('<Control-c>', do_nothing)
         self.root.bind('<Control-v>', do_nothing)
-        self.root.bind('<Control-x>', do_nothing)
 
     def init_menu(self):
         main_menu = tk.Menu(self.root)
@@ -41,8 +40,19 @@ class Application:
         file_menu = tk.Menu(main_menu, tearoff=0)
         file_menu.add_command(label='Открыть', command=self.open_file)
         file_menu.add_command(label='Сохранить', command=self.save_file)
+        file_menu.add_command(label='Новое окно', command=self.new_window)
         file_menu.add_separator()
         file_menu.add_command(label='Закрыть', command=self.close_window)
+
+        edit_menu = tk.Menu(main_menu, tearoff=0)
+        edit_menu.add_command(label='Отменить', command=self.undo)
+        edit_menu.add_separator()
+        edit_menu.add_command(label='Вырезать', command=lambda: self.text_field.event_generate('<<Cut>>'))
+        edit_menu.add_command(label='Копировать', command=lambda: self.text_field.event_generate('<<Copy>>'))
+        edit_menu.add_command(label='Вставить', command=lambda: self.text_field.event_generate('<<Paste>>'))
+        edit_menu.add_separator()
+        edit_menu.add_command(label='Найти...', command=self.find_text)
+        edit_menu.add_command(label='Заменить...', command=self.replace_text)
 
         view_menu = tk.Menu(main_menu, tearoff=0)
         view_menu_sub = tk.Menu(view_menu, tearoff=0)
@@ -56,32 +66,42 @@ class Application:
         view_menu.add_cascade(label='Шрифт', menu=font_menu_sub)
 
         main_menu.add_cascade(label='Файл', menu=file_menu)
+        main_menu.add_cascade(label='Правка', menu=edit_menu)
         main_menu.add_cascade(label='Вид', menu=view_menu)
         self.root.config(menu=main_menu)
 
     def run(self):
         self.root.mainloop()
 
+    def undo(self):
+        try:
+            self.text_field.edit_undo()
+        except tk.TclError:
+            pass
+
+    def redo(self):
+        try:
+            self.text_field.edit_redo()
+        except tk.TclError:
+            pass
+
     def keypress(self, event):
-        print(event.keycode)
-        if event.keycode == 86:
+        # print(event.keycode)
+        # print(type(event))
+        if event.keycode == 86:  # V
             event.widget.event_generate('<<Paste>>')
-        elif event.keycode == 67:
+        elif event.keycode == 67:  # C
             event.widget.event_generate('<<Copy>>')
-        elif event.keycode == 88:
+        elif event.keycode == 88:  # X
             event.widget.event_generate('<<Cut>>')
-        elif event.keycode == 65:
+        elif event.keycode == 65:  # A
             event.widget.event_generate('<<SelectAll>>')
-        elif event.keycode == 90:
-            try:
-                self.text_field.edit_undo()
-            except tk.TclError:
-                pass
-        elif event.keycode == 89:
-            try:
-                self.text_field.edit_redo()
-            except tk.TclError:
-                pass
+        elif event.keycode == 90:  # Z
+            self.undo()
+        elif event.keycode == 89:  # Y
+            self.redo()
+        elif event.keycode == 70:  # F
+            self.find_text()
 
     def change_theme(self, theme: str) -> None:
         self.text_field['bg'] = view_colors[theme]['text_bg']
@@ -112,6 +132,74 @@ class Application:
         text = self.text_field.get('1.0', tk.END)
         file.write(text)
         file.close()
+
+    def find_text(self):
+
+        find_window = tk.Toplevel(self.root)
+        find_window.geometry('300x80')
+        find_window.title('Найти')
+
+        find_label = tk.Label(find_window, text='Найти вхождения в тексте:')
+        find_label.pack()
+
+        find_entry = tk.Entry(find_window)
+        find_entry.pack()
+
+        find_button = tk.Button(find_window, text='Найти', command=lambda: self.search_text(find_entry.get()))
+        find_button.pack()
+
+        def close_window():
+            self.text_field.tag_delete('selection')
+            find_window.destroy()
+
+        find_window.protocol('WM_DELETE_WINDOW', close_window)
+
+    def search_text(self, text):
+        self.text_field.tag_delete('selection')
+        data = self.text_field.get('1.0', tk.END)
+
+        matches = finditer(text, data)
+        for match in matches:
+            print(f'1.{match.start()}', f'1.{match.end()}')
+            self.text_field.tag_add("selection", f'1.0+{match.start()}c', f'1.0+{match.end()}c')
+            self.text_field.tag_config("selection", background="#3295a8")
+
+    def replace_text(self):
+
+        replace_window = tk.Toplevel(self.root)
+        replace_window.geometry('300x130')
+        replace_window.title('Найти')
+
+        find_label = tk.Label(replace_window, text='Заменить текст:', anchor='center')
+        find_label.pack()
+
+        tk.Label(replace_window, text='Что:').pack()
+        find_entry = tk.Entry(replace_window)
+        find_entry.pack()
+
+        tk.Label(replace_window, text='Чем:').pack()
+        replace_entry = tk.Entry(replace_window)
+        replace_entry.pack()
+
+        def edit_text():
+            self.text_field.tag_delete('selection')
+            new_text = self.text_field.get('1.0', tk.END).replace(find_entry.get(), replace_entry.get())
+            self.text_field.delete('1.0', tk.END)
+            self.text_field.insert('1.0', new_text)
+            self.search_text(replace_entry.get())
+
+        replace_button = tk.Button(replace_window, text='Заменить', command=edit_text)
+        replace_button.pack()
+
+        def close_window():
+            self.text_field.tag_delete('selection')
+            replace_window.destroy()
+
+        replace_window.protocol('WM_DELETE_WINDOW', close_window)
+
+    def new_window(self):
+        new_app = Application()
+        new_app.run()
 
 
 view_colors = {
