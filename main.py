@@ -2,6 +2,9 @@ import tkinter as tk
 from tkinter import messagebox, filedialog
 from re import finditer
 
+import pygments.lexers
+from chlorophyll import CodeView
+
 
 def do_nothing(*args):
     pass
@@ -10,8 +13,9 @@ def do_nothing(*args):
 class Application:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title('Text editor')
+        self.root.title('Блокнот')
         self.root.geometry('600x800')
+        self.cur_lexer = None
 
         self.init_menu()
 
@@ -32,6 +36,9 @@ class Application:
         self.text_field.config(yscrollcommand=scroll.set)
 
         self.root.bind('<Control-KeyPress>', self.keypress)
+        self.root.bind('<Control-z>', do_nothing)
+        self.root.bind('<Control-x>', do_nothing)
+        self.root.bind('<Control-c>', do_nothing)
         self.root.bind('<Control-v>', do_nothing)
 
     def init_menu(self):
@@ -65,6 +72,12 @@ class Application:
         font_menu_sub.add_command(label='Times New Roman', command=lambda: self.change_font('TNR'))
         view_menu.add_cascade(label='Шрифт', menu=font_menu_sub)
 
+        develop_menu_sub = tk.Menu(view_menu, tearoff=0)
+        develop_menu_sub.add_command(label='Python', command=lambda: self.development(pygments.lexers.PythonLexer))
+        develop_menu_sub.add_command(label='C++', command=lambda: self.development(pygments.lexers.CppLexer))
+        develop_menu_sub.add_command(label='Java', command=lambda: self.development(pygments.lexers.JavaLexer))
+        view_menu.add_cascade(label='Разработка', menu=develop_menu_sub)
+
         main_menu.add_cascade(label='Файл', menu=file_menu)
         main_menu.add_cascade(label='Правка', menu=edit_menu)
         main_menu.add_cascade(label='Вид', menu=view_menu)
@@ -86,7 +99,7 @@ class Application:
             pass
 
     def keypress(self, event):
-        # print(event.keycode)
+        print(event.keycode)
         # print(type(event))
         if event.keycode == 86:  # V
             event.widget.event_generate('<<Paste>>')
@@ -104,10 +117,16 @@ class Application:
             self.find_text()
 
     def change_theme(self, theme: str) -> None:
-        self.text_field['bg'] = view_colors[theme]['text_bg']
-        self.text_field['fg'] = view_colors[theme]['text_fg']
-        self.text_field['insertbackground'] = view_colors[theme]['cursor']
-        self.text_field['selectbackground'] = view_colors[theme]['select_bg']
+        if not self.cur_lexer:
+            self.text_field['bg'] = view_colors[theme]['text_bg']
+            self.text_field['fg'] = view_colors[theme]['text_fg']
+            self.text_field['insertbackground'] = view_colors[theme]['cursor']
+            self.text_field['selectbackground'] = view_colors[theme]['select_bg']
+        else:
+            if theme == 'light':
+                self.text_field.configure(color_scheme='ayu-light')
+            else:
+                self.text_field.configure(color_scheme='monokai')
 
     def change_font(self, font: str) -> None:
         self.text_field['font'] = fonts[font]['font']
@@ -200,6 +219,27 @@ class Application:
     def new_window(self):
         new_app = Application()
         new_app.run()
+
+    def development(self, lexer):
+        self.root.destroy()
+        if self.cur_lexer != lexer:
+            self.root = tk.Tk()
+            self.root.title('Блокнот')
+            self.root.geometry('600x800')
+            self.cur_lexer = lexer
+
+            self.init_menu()
+
+            self.text_field = CodeView(self.root, lexer=lexer, color_scheme='monokai', undo=True)
+            self.text_field.pack(fill=tk.BOTH, expand=1, side=tk.LEFT)
+
+            self.root.bind('<Control-KeyPress>', self.keypress)
+            self.root.bind('<Control-z>', do_nothing)
+            self.root.bind('<Control-x>', do_nothing)
+            self.root.bind('<Control-c>', do_nothing)
+            self.root.bind('<Control-v>', do_nothing)
+        else:
+            self.__init__()
 
 
 view_colors = {
