@@ -99,8 +99,6 @@ class Application:
             pass
 
     def keypress(self, event):
-        print(event.keycode)
-        # print(type(event))
         if event.keycode == 86:  # V
             event.widget.event_generate('<<Paste>>')
         elif event.keycode == 67:  # C
@@ -155,7 +153,7 @@ class Application:
     def find_text(self):
 
         find_window = tk.Toplevel(self.root)
-        find_window.geometry('300x80')
+        find_window.geometry('300x88')
         find_window.title('Найти')
 
         find_label = tk.Label(find_window, text='Найти вхождения в тексте:')
@@ -164,8 +162,13 @@ class Application:
         find_entry = tk.Entry(find_window)
         find_entry.pack()
 
-        find_button = tk.Button(find_window, text='Найти', command=lambda: self.search_text(find_entry.get()))
+        lettercase_use = tk.BooleanVar()
+        find_button = tk.Button(find_window, text='Найти',
+                                command=lambda: self.search_text(find_entry.get(), lettercase_use))
         find_button.pack()
+
+        lettercase_button = tk.Checkbutton(find_window, text='Не учитывать регистр', variable=lettercase_use)
+        lettercase_button.pack()
 
         def close_window():
             self.text_field.tag_delete('selection')
@@ -173,13 +176,15 @@ class Application:
 
         find_window.protocol('WM_DELETE_WINDOW', close_window)
 
-    def search_text(self, text):
+    def search_text(self, text, lettercase_use):
         self.text_field.tag_delete('selection')
         data = self.text_field.get('1.0', tk.END)
 
+        if lettercase_use.get():
+            data = data.lower()
+            text = text.lower()
         matches = finditer(text, data)
         for match in matches:
-            print(f'1.{match.start()}', f'1.{match.end()}')
             self.text_field.tag_add("selection", f'1.0+{match.start()}c', f'1.0+{match.end()}c')
             self.text_field.tag_config("selection", background="#3295a8")
 
